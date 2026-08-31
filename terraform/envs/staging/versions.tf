@@ -6,5 +6,9 @@ terraform {
       source  = "huaweicloud/huaweicloud"
       version = "~> 1.70" # pinned to a minor line for reproducible plans
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 }

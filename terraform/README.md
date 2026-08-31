@@ -6,11 +6,11 @@ Infrastructure for the Laravel API on Huawei Cloud, provisioned as reusable modu
 ```
 terraform/
 ├── modules/
-│   ├── vpc/     ✅ network + 3-tier segmentation + NAT   (implemented)
+│   ├── vpc/     ✅ network + 3-tier segmentation + NAT
+│   ├── rds/     ✅ MySQL (SQLite replacement), private, KMS, dedicated app user
+│   ├── dcs/     ✅ Redis, private, password-auth
 │   ├── obs/     ▫ object storage + remote-state bucket   (next)
 │   ├── iam/     ▫ least-priv users + CCE workload agency (next)
-│   ├── rds/     ▫ MySQL, multi-AZ, private, KMS           (next)
-│   ├── dcs/     ▫ Redis                                   (next)
 │   ├── cce/     ▫ managed Kubernetes + node pool          (next)
 │   └── elb/     ▫ load balancer + TLS                     (next)
 └── envs/

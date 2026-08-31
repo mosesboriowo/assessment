@@ -15,9 +15,15 @@ variable "vpc_cidr" {
 }
 
 variable "availability_zone" {
-  description = "Primary AZ. For production, pass a second AZ to the DB/CCE modules for multi-AZ HA."
+  description = "Primary AZ for the VPC subnets. Empty lets Huawei choose."
   type        = string
   default     = ""
+}
+
+variable "availability_zones" {
+  description = "AZ list for RDS/DCS. One AZ in staging; two in prod for HA. Verify AZ codes in console."
+  type        = list(string)
+  default     = ["af-north-1a"]
 }
 
 variable "tags" {
