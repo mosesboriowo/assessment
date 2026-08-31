@@ -1,0 +1,20 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Never commit real secrets (env config tfvars in this repo contain no secrets)
+*.tfvars.secret
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+*.swp
