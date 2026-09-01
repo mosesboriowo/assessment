@@ -35,11 +35,6 @@ variable "db_name" {
   type    = string
   default = "cashonrails"
 }
-variable "db_user" {
-  description = "Dedicated least-privilege application account (not the root user)."
-  type        = string
-  default     = "cor_app"
-}
 variable "kms_key_id" {
   description = "Existing KMS key for at-rest encryption; if empty a key is created."
   type        = string

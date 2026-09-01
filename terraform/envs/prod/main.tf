@@ -38,7 +38,6 @@ module "dcs" {
   subnet_id          = module.vpc.data_subnet_id
   security_group_id  = module.vpc.data_security_group_id
   availability_zones = var.availability_zones
-  kms_key_id         = module.rds.kms_key_id # reuse the DB KMS key for the secret
   tags               = var.tags
 }
 

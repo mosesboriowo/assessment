@@ -12,8 +12,12 @@ Production environment for the supplied Laravel REST API on **Huawei Cloud**, pr
 ```
 assessment/
 ├── terraform/         # modular IaC: modules/ + envs/{staging,prod}
-├── deploy/helm/       # reusable "golden path" service chart
-├── ci-cd/             # build → scan → publish → deploy → verify → rollback
+├── deploy/
+│   ├── helm/service/  # reusable "golden path" service chart
+│   ├── helm/vault/    # in-country self-hosted Vault (HA Raft, auto-unseal)
+│   └── argocd/        # ApplicationSet + AppProject + bootstrap (GitOps engine)
+├── csh-product/       # per-service values: {stg,production}/values/<app>.yml
+├── ci-cd/             # build → scan → publish → commit image tag (GitOps)
 ├── docs/
 │   ├── architecture/              # design + decisions + diagram
 │   ├── platform-design/           # Part 2 — the paved road
@@ -23,7 +27,7 @@ assessment/
 ```
 
 ## Architecture (one line)
-Client → **ELB (TLS)** → **NGINX ingress** in **CCE (K8s)** → Laravel pods → **RDS MySQL** + **DCS Redis** + **OBS**; secrets in **self-hosted Vault** (in-country); logs/metrics to **LTS/Cloud Eye**; residency-bound data AZ-pinned to Nigeria. Full detail in [`docs/architecture`](docs/architecture/architecture.md).
+Client → **ELB (TLS)** → **NGINX ingress** in **CCE (K8s)** → Laravel pods → **RDS MySQL** + **DCS Redis** + **OBS**; secrets in **self-hosted Vault** (in-country); logs/metrics to **LTS/Cloud Eye**; residency-bound data AZ-pinned to Nigeria. Delivery is **GitOps via Argo CD** (`deploy/argocd`). Full detail in [`docs/architecture`](docs/architecture/architecture.md).
 
 ## Prerequisites
 - Terraform ≥ 1.10, a Huawei Cloud account, and credentials exported as `HW_ACCESS_KEY` / `HW_SECRET_KEY` (never committed).
@@ -38,7 +42,10 @@ terraform fmt -check -recursive ../..
 terraform validate
 terraform plan            # review — nothing out-of-region should appear
 terraform apply
-# ... app is deployed by the CI/CD pipeline (ci-cd/cd-pipeline.yml)
+# App delivery is GitOps: CI (ci-cd/cd-pipeline.yml) builds/scans/pushes and
+# commits the image SHA into csh-product/<env>/values/<app>.yml; Argo CD syncs
+# it to the cluster. Onboarding a service = adding one values file. See
+# deploy/argocd/README.md.
 terraform destroy         # tear down
 ```
 Production is the same commands in `terraform/envs/prod` (multi-AZ, requires approval).
@@ -67,7 +74,7 @@ Progressive delivery (Argo Rollouts), OPA/Gatekeeper guardrails as code, a `serv
 |---|---|
 | Architecture & judgement (15%) | `docs/architecture` |
 | Terraform / IaC (20%) | `terraform/` (modules + envs) |
-| CI/CD & deployment (15%) | `ci-cd/`, `deploy/helm` |
+| CI/CD & deployment (15%) | `ci-cd/`, `deploy/helm`, `deploy/argocd` (GitOps) |
 | Security, IAM, secrets, networking (15%) | `docs/security-data-residency` §A, `modules/{iam,vpc,rds}` |
 | Reliability, backup, DR (10%) | `docs/reliability` |
 | Observability (10%) | architecture §4.10, reliability |

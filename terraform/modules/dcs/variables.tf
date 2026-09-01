@@ -25,11 +25,6 @@ variable "engine_version" {
   type    = string
   default = "6.0"
 }
-variable "kms_key_id" {
-  description = "KMS key for the credentials secret (shared with RDS)."
-  type        = string
-  default     = ""
-}
 variable "tags" {
   type    = map(string)
   default = {}
