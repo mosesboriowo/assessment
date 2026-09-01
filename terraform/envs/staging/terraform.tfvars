@@ -5,3 +5,5 @@ name_prefix        = "cor-staging"
 vpc_cidr           = "10.20.0.0/16"
 availability_zone  = ""              # VPC subnets — Huawei chooses
 availability_zones = ["af-north-1a"] # ASSUMPTION: verify AZ code; single-AZ in staging
+domain_name        = "REPLACE_WITH_HUAWEI_ACCOUNT_NAME"
+# node_password is NOT set here — provide via: export TF_VAR_node_password=... (from CSMS/CI)

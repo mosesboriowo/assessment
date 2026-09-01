@@ -9,10 +9,10 @@ terraform/
 │   ├── vpc/     ✅ network + 3-tier segmentation + NAT
 │   ├── rds/     ✅ MySQL (SQLite replacement), private, KMS, dedicated app user
 │   ├── dcs/     ✅ Redis, private, password-auth
-│   ├── obs/     ▫ object storage + remote-state bucket   (next)
-│   ├── iam/     ▫ least-priv users + CCE workload agency (next)
-│   ├── cce/     ▫ managed Kubernetes + node pool          (next)
-│   └── elb/     ▫ load balancer + TLS                     (next)
+│   ├── obs/     ✅ object storage (app data), versioned + KMS-encrypted
+│   ├── iam/     ✅ workload-identity agency + scoped CI role
+│   ├── cce/     ✅ managed Kubernetes cluster + autoscaling node pool
+│   └── elb/     ✅ public load balancer + HTTPS listener (HTTP→HTTPS)
 └── envs/
     ├── staging/ ✅ composes modules; single-AZ, cost-lean
     └── prod/    ▫ same modules, multi-AZ, larger sizing

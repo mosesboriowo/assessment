@@ -1,0 +1,10 @@
+apiVersion: v2
+name: service
+description: >-
+  Reusable "golden path" chart for any Cashonrails service (Laravel, Go,
+  Java/Spring, Node). A team ships a container image + a values file and gets a
+  production-shaped Deployment, Service, Ingress, HPA, health probes, and
+  secret injection — no bespoke Kubernetes per service (see docs/platform-design).
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

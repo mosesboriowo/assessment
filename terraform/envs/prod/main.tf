@@ -1,8 +1,7 @@
 # ---------------------------------------------------------------------------
-# Staging environment root. Composes reusable modules; environment-specific
-# values come from terraform.tfvars. Production is an identical composition
-# with different inputs (multi-AZ, larger sizing) — the "same modules,
-# different variables" pattern (docs/architecture §4.14).
+# Production environment root. IDENTICAL module composition to staging — only
+# the inputs differ (multi-AZ HA, two AZs, higher node ceiling). This is the
+# "same modules, different variables" pattern (docs/architecture §4.14).
 # ---------------------------------------------------------------------------
 
 module "vpc" {
@@ -22,7 +21,7 @@ module "rds" {
   subnet_id          = module.vpc.data_subnet_id
   security_group_id  = module.vpc.data_security_group_id
   availability_zones = var.availability_zones
-  multi_az           = false # staging runs single-AZ to save cost; prod = true
+  multi_az           = true # production: synchronous HA replica across AZs
   tags               = var.tags
 }
 
@@ -63,8 +62,8 @@ module "cce" {
   app_subnet_id     = module.vpc.app_subnet_id
   availability_zone = var.availability_zone
   node_password     = var.node_password
-  min_nodes         = 2
-  max_nodes         = 4 # staging caps lower than prod
+  min_nodes         = 3
+  max_nodes         = 8 # production headroom for traffic spikes
   tags              = var.tags
 }
 
