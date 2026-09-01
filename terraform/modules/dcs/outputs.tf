@@ -10,6 +10,8 @@ output "port" {
   value = huaweicloud_dcs_instance.this.port
 }
 
-output "app_credentials_secret_name" {
-  value = huaweicloud_csms_secret.redis.name
+# Redis password for the Vault KV bootstrap. Sensitive; never stored in CSMS/Git.
+output "redis_password" {
+  value     = random_password.redis.result
+  sensitive = true
 }

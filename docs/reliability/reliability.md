@@ -20,7 +20,7 @@ How the system keeps operating safely under production conditions, the failure m
 | **Database failure** | Primary unhealthy | RDS **automatic failover to standby** (prod). If data corruption: **PITR restore** to just before the event (RPO ≤ 15 m). |
 | **Increased traffic** | Load rises | **HPA** scales pods (memory 75%); **cluster autoscaler** adds nodes; ELB spreads load. Stateless pods scale freely. |
 | **Failed deployment** | New version unhealthy | Readiness-gated rolling update never shifts traffic to bad pods; **auto-rollback** (Helm) + smoke test catch it. |
-| **Backup restoration** | Need to recover data | Restore RDS from automated backup/PITR into a new instance; repoint the app via its CSMS secret. Tested periodically (drill). |
+| **Backup restoration** | Need to recover data | Restore RDS from automated backup/PITR into a new instance; update Vault's DB connection so it re-issues dynamic creds against the restored instance. Tested periodically (drill). |
 | **Disaster recovery** | Loss beyond one AZ | Restore from in-region backups into a second **Nigerian** AZ/DC (residency preserved). Terraform re-provisions the stack from code; state is in OBS. |
 
 ---

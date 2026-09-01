@@ -1,19 +1,18 @@
 # ---------------------------------------------------------------------------
-# RDS for MySQL — the production replacement for the app's dev-only SQLite
+# RDS for MySQL — production replacement for the app's dev-only SQLite
 # (docs/architecture §2.1). Private-data subnet only, KMS-encrypted at rest,
-# automated backups + PITR, optional multi-AZ HA. The app connects via a
-# dedicated least-privilege account whose credentials live in CSMS, never Git.
+# automated backups + PITR.
+#
+# The application does NOT use a static DB password. Vault's database secrets
+# engine (docs/architecture §4.6) connects with the admin credential below and
+# mints SHORT-LIVED, per-pod MySQL users, auto-rotated and revoked on lease end.
+# The admin credential is generated here and consumed by Vault at bootstrap — it
+# is never stored in CSMS (region-scoped → residency gap) or in Git.
 # ---------------------------------------------------------------------------
 
-# Passwords are generated, not written by a human. They land in Terraform state,
-# which is remote, encrypted, and residency-pinned (see backend + README).
-resource "random_password" "root" {
-  length           = 24
-  special          = true
-  override_special = "!#%*_-+"
-}
-
-resource "random_password" "app" {
+# Admin password is generated, not human-written. It lands in Terraform state
+# (remote, encrypted) and is loaded into Vault at bootstrap; the app never sees it.
+resource "random_password" "admin" {
   length           = 24
   special          = true
   override_special = "!#%*_-+"
@@ -43,7 +42,7 @@ resource "huaweicloud_rds_instance" "this" {
     type     = "MySQL"
     version  = "8.0"
     port     = 3306
-    password = random_password.root.result
+    password = random_password.admin.result # RDS admin ("root")
   }
 
   volume {
@@ -64,40 +63,12 @@ resource "huaweicloud_rds_instance" "this" {
   }
 }
 
-# Dedicated application database + least-privilege account (app never uses root).
+# The application database. Application USER accounts are created dynamically by
+# Vault's DB engine, so no static application account is provisioned here.
+# (In production, Vault would connect via a dedicated, minimally-privileged
+# management account rather than root.)
 resource "huaweicloud_rds_mysql_database" "app" {
   instance_id   = huaweicloud_rds_instance.this.id
   name          = var.db_name
   character_set = "utf8mb4"
-}
-
-resource "huaweicloud_rds_mysql_account" "app" {
-  instance_id = huaweicloud_rds_instance.this.id
-  name        = var.db_user
-  password    = random_password.app.result
-}
-
-resource "huaweicloud_rds_mysql_database_privilege" "app" {
-  instance_id = huaweicloud_rds_instance.this.id
-  db_name     = huaweicloud_rds_mysql_database.app.name
-
-  users {
-    name     = huaweicloud_rds_mysql_account.app.name
-    readonly = false
-  }
-}
-
-# App credentials in CSMS — the Laravel pods read these at runtime (via workload
-# identity), so nothing sensitive is baked into images, env files, or Git.
-resource "huaweicloud_csms_secret" "db" {
-  name       = "${var.name_prefix}/rds/app"
-  kms_key_id = local.kms_id
-  secret_text = jsonencode({
-    DB_CONNECTION = "mysql"
-    DB_HOST       = huaweicloud_rds_instance.this.private_ips[0]
-    DB_PORT       = 3306
-    DB_DATABASE   = var.db_name
-    DB_USERNAME   = var.db_user
-    DB_PASSWORD   = random_password.app.result
-  })
 }

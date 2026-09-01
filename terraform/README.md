@@ -57,9 +57,11 @@ terraform destroy         # tear down
   backend located in-country.
 
 ## Key assumptions to verify
-- **Region code** for the Nigerian location (`af-north-1` used as a placeholder)
-  — confirm the actual code and the OBS/ RDS/ CCE service availability there
-  (see docs/security-data-residency).
+- **Region = `af-south-1`** (Southern-Africa/Johannesburg). Nigeria is an **AZ
+  within** it, not a region. Enumerate AZs via `envs/staging/az-helper.tf`
+  (`terraform console` → `data.huaweicloud_availability_zones.this.names`) and
+  set the **Nigerian AZ code** in `availability_zones`. Region-scoped services
+  (OBS/IAM/etc.) may sit in Johannesburg — residency gap (see residency doc §B.0).
 - Provider version `~> 1.70` — pin to the version validated during the build.
 
 ## Security notes

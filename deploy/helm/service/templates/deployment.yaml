@@ -12,7 +12,7 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxUnavailable: 0   # zero-downtime rollout
+      maxUnavailable: 0   # this defines zero downtime rollout
       maxSurge: 1
   template:
     metadata:
@@ -25,7 +25,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.containerPort }}
-          # Credentials/config synced from CSMS into this Secret; never in Git.
+          # Credentials/config synced from Vault into this Secret; never in Git.
           envFrom:
             - secretRef:
                 name: {{ .Values.envFromSecret }}

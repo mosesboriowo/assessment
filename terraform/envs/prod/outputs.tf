@@ -22,17 +22,25 @@ output "rds_private_host" {
   value = module.rds.private_host
 }
 
-output "rds_app_secret_name" {
-  description = "CSMS secret the app reads for DB credentials."
-  value       = module.rds.app_credentials_secret_name
+# RDS admin credential — loaded into Vault's DB engine at bootstrap so Vault can
+# mint short-lived per-pod app users. Sensitive; not stored in CSMS/Git.
+output "rds_admin_username" {
+  value = module.rds.admin_username
+}
+
+output "rds_admin_password" {
+  value     = module.rds.admin_password
+  sensitive = true
 }
 
 output "redis_private_host" {
   value = module.dcs.private_host
 }
 
-output "redis_app_secret_name" {
-  value = module.dcs.app_credentials_secret_name
+# Redis password — written to Vault KV at bootstrap. Sensitive.
+output "redis_password" {
+  value     = module.dcs.redis_password
+  sensitive = true
 }
 
 output "cce_cluster_name" {

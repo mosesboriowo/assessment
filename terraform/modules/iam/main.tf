@@ -1,24 +1,22 @@
 # ---------------------------------------------------------------------------
 # IAM — least-privilege identities.
-#  1. A workload-identity agency assumed by CCE pods so the app can read its
-#     CSMS secrets and use its OBS bucket WITHOUT static access keys in the image.
+#  1. A workload-identity agency assumed by CCE pods so the app can use its OBS
+#     bucket WITHOUT static access keys in the image. (Secrets do NOT come from
+#     Huawei IAM/CSMS — pods authenticate to self-hosted Vault via the Kubernetes
+#     auth method, which is cluster-side, so no csms:* permission is granted.)
 #  2. A tightly-scoped CI/CD deploy role/policy (push images to SWR, deploy to
 #     the cluster) — no broad admin, no console rights.
 # Human admin users and root are out of scope here and managed via SSO/console.
 # ---------------------------------------------------------------------------
 
-# Custom, minimal policy: read only the app's own secrets + use its own bucket.
+# Custom, minimal policy: use only the app's own OBS bucket.
 resource "huaweicloud_identity_custom_role" "workload" {
-  name        = "${var.name_prefix}-workload-read"
-  description = "App pods: read own CSMS secrets and use own OBS bucket only."
+  name        = "${var.name_prefix}-workload"
+  description = "App pods: use own OBS bucket only (secrets come from Vault, not IAM)."
   type        = "AX"
   policy = jsonencode({
     Version = "1.1"
     Statement = [
-      {
-        Effect = "Allow"
-        Action = ["csms:secretVersion:get", "csms:secret:get"]
-      },
       {
         Effect = "Allow"
         Action = ["obs:object:GetObject", "obs:object:PutObject", "obs:bucket:ListBucket"]

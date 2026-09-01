@@ -24,14 +24,6 @@ resource "huaweicloud_dcs_instance" "this" {
   tags               = var.tags
 }
 
-# Redis credentials in CSMS, consumed by the app at runtime.
-resource "huaweicloud_csms_secret" "redis" {
-  name       = "${var.name_prefix}/dcs/app"
-  kms_key_id = var.kms_key_id != "" ? var.kms_key_id : null
-  secret_text = jsonencode({
-    REDIS_HOST     = huaweicloud_dcs_instance.this.private_ips[0]
-    REDIS_PORT     = huaweicloud_dcs_instance.this.port
-    REDIS_PASSWORD = random_password.redis.result
-    REDIS_CLIENT   = "phpredis"
-  })
-}
+# Redis endpoint + password are written to Vault KV at bootstrap (in-country),
+# not to region-scoped CSMS. The app reads them from Vault via the Agent/CSI.
+# The password is exposed only as a sensitive output for that bootstrap step.

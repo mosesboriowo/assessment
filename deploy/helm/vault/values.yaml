@@ -1,0 +1,88 @@
+# ---------------------------------------------------------------------------
+# Self-hosted HashiCorp Vault (official hashicorp/vault chart) — the in-country
+# secrets solution that closes the CSMS/KMS residency gap (docs/security-data-
+# residency §B.0/§B.4). Runs on CCE, in the Nigerian AZ, with data on a PVC.
+#
+#  - HA with 3-node Raft integrated storage (quorum = 2, tolerates 1 failure).
+#    NOTE: Raft needs an ODD count ≥ 3; 2 nodes cannot keep quorum. Hence 3.
+#  - PVC per pod (Huawei EVS SSD) pinned to the Nigerian AZ → Raft data stays
+#    in-country.
+#  - AUTO-UNSEAL so pods restart WITHOUT a human unseal ("no steady seal problem").
+#  - Pods authenticate with the Kubernetes auth method; humans via AD/LDAP/OIDC.
+# ---------------------------------------------------------------------------
+
+global:
+  enabled: true
+
+injector:
+  enabled: true # Vault Agent injector: sidecar injects secrets into app pods
+
+ui:
+  enabled: true
+  serviceType: ClusterIP # internal only; reach via ingress/bastion, never public
+
+server:
+  # Spread the 3 replicas across nodes for real HA.
+  affinity: |
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: vault
+              component: server
+          topologyKey: kubernetes.io/hostname
+
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits: { cpu: "1", memory: 512Mi }
+
+  # Persistent storage for Raft — Huawei EVS SSD, AZ-pinned to Nigeria via the
+  # StorageClass (see the StorageClass note in the README).
+  dataStorage:
+    enabled: true
+    size: 10Gi
+    storageClass: evs-ssd-nigeria-az # RWО block volume in the Nigerian AZ
+    accessMode: ReadWriteOnce
+
+  ha:
+    enabled: true
+    replicas: 3 # Raft quorum minimum; do NOT set 2
+    raft:
+      enabled: true
+      setNodeId: true
+      config: |
+        ui = true
+
+        listener "tcp" {
+          address         = "[::]:8200"
+          cluster_address = "[::]:8201"
+          # TLS terminated at the ingress; enable in-pod TLS for zero-trust if required.
+          tls_disable = 1
+        }
+
+        storage "raft" {
+          path = "/vault/data"
+        }
+
+        # ---- AUTO-UNSEAL (this is what removes the manual-unseal problem) ----
+        # Primary choice on Huawei: TRANSIT auto-unseal against a small, separate
+        # in-country "unseal" Vault (open-source, cloud-agnostic, stays in Nigeria).
+        # The unseal token is injected via the VAULT_TOKEN env from a k8s Secret.
+        seal "transit" {
+          address    = "https://vault-unseal.vault.svc:8200"
+          mount_path = "transit/"
+          key_name   = "autounseal"
+          # token     -> provided via VAULT_TOKEN (k8s secret), not in this file
+        }
+
+        service_registration "kubernetes" {}
+
+  extraEnvironmentVars:
+    VAULT_ADDR: "http://127.0.0.1:8200"
+
+# NOTE on seal choice (documented so it can be defended):
+#  - TRANSIT (above): open-source, in-country, no extra licensing. Recommended.
+#  - Dedicated HSM + PKCS#11: hardware-backed, ideal for a bank — but Vault
+#    ENTERPRISE only, and needs Huawei Dedicated HSM (DHSM) in-country.
+#  - Native cloud KMS seal (awskms/azure/gcp) has NO Huawei provider in Vault;
+#    only usable if Huawei KMS exposes an AWS-KMS-compatible endpoint (verify).

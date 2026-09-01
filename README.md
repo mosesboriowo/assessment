@@ -23,7 +23,7 @@ assessment/
 ```
 
 ## Architecture (one line)
-Client → **ELB (TLS)** → **NGINX ingress** in **CCE (K8s)** → Laravel pods → **RDS MySQL** + **DCS Redis** + **OBS**; secrets in **CSMS/KMS**; logs/metrics to **LTS/Cloud Eye**; everything residency-pinned to Nigeria. Full detail in [`docs/architecture`](docs/architecture/architecture.md).
+Client → **ELB (TLS)** → **NGINX ingress** in **CCE (K8s)** → Laravel pods → **RDS MySQL** + **DCS Redis** + **OBS**; secrets in **self-hosted Vault** (in-country); logs/metrics to **LTS/Cloud Eye**; residency-bound data AZ-pinned to Nigeria. Full detail in [`docs/architecture`](docs/architecture/architecture.md).
 
 ## Prerequisites
 - Terraform ≥ 1.10, a Huawei Cloud account, and credentials exported as `HW_ACCESS_KEY` / `HW_SECRET_KEY` (never committed).
@@ -44,7 +44,7 @@ terraform destroy         # tear down
 Production is the same commands in `terraform/envs/prod` (multi-AZ, requires approval).
 
 ## Assumptions
-- Huawei's **Nigerian data centre** exposes the managed services used (RDS/OBS/DCS/CSMS/KMS/SWR/LTS/Cloud Eye). Region (`af-north-1`), AZ, and flavor codes are **placeholders to verify**.
+- Nigeria is an **availability zone within the `af-south-1` (Southern-Africa/Johannesburg) region**, not a standalone region (see `docs/security-data-residency` §B.0). Residency-bound data is AZ-pinned to the Nigerian AZ; the exact **Nigerian AZ code** and flavor codes are placeholders — enumerate the AZs with `terraform console` → `data.huaweicloud_availability_zones.this.names` (helper in `envs/staging/az-helper.tf`) and confirm in-console.
 - App verified against `Cashonrails/my-assessment-api`: **FrankenPHP on :8080**, `/api/v1/health` + `/api/v1/ready`, `stderr` logging. SQLite→RDS is a **config-only** change (`DB_CONNECTION=mysql`).
 - Some Huawei resource attribute names may differ by provider version and are commented where they should be confirmed.
 
@@ -59,6 +59,8 @@ Production is the same commands in `terraform/envs/prod` (multi-AZ, requires app
 
 ## Production improvements with more time
 Progressive delivery (Argo Rollouts), OPA/Gatekeeper guardrails as code, a `service-infra` module + self-service CLI/Backstage, scheduled DR restore drills + chaos tests, OpenTelemetry tracing, and cost dashboards with anomaly alerts.
+
+**On residency:** because no hyperscaler has a full Nigerian region (AWS = Cape Town + a Lagos Local Zone; Azure/GCP = Johannesburg; Huawei = a Nigeria AZ), complete CBN residency ultimately implies a **hybrid model** — cloud for general workloads plus an **in-country Nigerian data centre / on-prem** (bare-metal Kubernetes) for the regulated tier. This architecture is designed to evolve into that without a rewrite: the residency-bound tier is already isolated and its region-scoped gaps already use self-hosted, in-country components (see `docs/security-data-residency` §B.0, §B.6).
 
 ## Evaluation-criteria map
 | Area (weight) | Where |

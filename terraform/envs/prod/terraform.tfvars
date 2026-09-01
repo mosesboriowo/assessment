@@ -1,5 +1,5 @@
 # Environment-specific values for production. No secrets here.
-region            = "af-north-1" # ASSUMPTION: Nigeria region code — confirm in Huawei console
+region            = "af-south-1" # Southern-Africa region (Johannesburg); Nigerian AZ lives within it
 name_prefix       = "cor-prod"
 vpc_cidr          = "10.30.0.0/16"
 availability_zone = ""

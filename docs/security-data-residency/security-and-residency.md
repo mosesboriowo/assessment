@@ -12,7 +12,7 @@ Two things live here: the **security model** (IAM, secrets, networking, encrypti
 - The database is **never publicly exposed** (brief requirement).
 
 ### Identity & access
-- **Workload identity (agency)** for pods → they read only their own CSMS secrets and OBS bucket; **no static keys in images**.
+- **Workload identity (agency)** for pods → use only their own OBS bucket; **no static keys in images**. Secrets come from **self-hosted Vault** via the Kubernetes auth method (not Huawei IAM/CSMS).
 - **Scoped CI/CD role** (push to SWR, deploy to CCE) — no admin, no console.
 - Human admin via SSO/console, MFA, out of band from workloads.
 
@@ -87,5 +87,14 @@ Verifying in-console (and against public information), Huawei Cloud's full **reg
 
 ---
 
+### B.6 Cloud landscape — why full residency ultimately implies hybrid
+This is **not a Huawei-specific limitation**. No hyperscaler operates a full region in Nigeria: **AWS** has only a small Lagos *Local Zone* (its region is Cape Town); **Azure** and **Google Cloud** are **Johannesburg**-only; Huawei's Nigeria presence is the **AZ** discussed above. Switching cloud provider would not, on its own, satisfy CBN — and Huawei's Nigeria AZ is in fact one of the *closer* in-country cloud options.
+
+Because of this, **complete CBN residency ultimately points to a hybrid model**: general workloads on cloud, and the regulated customer/transaction data (plus its backups, logs, keys, and DR) in an **in-country Nigerian data centre or on-prem** — e.g. Rack Centre, Equinix/MDXi Lagos, Africa Data Centres, or **self-managed bare-metal Kubernetes** in a Nigerian colo. This is precisely why CBN's localisation drive is moving Nigerian fintechs toward local/hybrid infrastructure.
+
+The architecture here is **compatible with that direction, not a dead end**: residency-bound data is already isolated (AZ-pinned, single-AZ) and the region-scoped gaps already use **self-hosted, in-country** components (Vault, Prometheus/Grafana + ELK, a private registry). Relocating those specific components onto a Nigerian DC/on-prem footprint is an **evolution of the same design, not a rewrite** — the Terraform modules and Helm golden path stay the same; only the underlying location of the regulated tier changes.
+
+---
+
 ## Summary
-Residency is satisfied **in-country on Huawei Cloud**, with every data class — including the easily-missed ones (logs, telemetry, keys, image metadata, DR copies, Terraform state) — pinned to Nigeria, **policy that prevents** out-of-region creation, and **audit that detects** it. Services whose in-country availability I cannot confirm are documented with an in-country self-hosted mitigation rather than assumed compliant.
+Residency for CashOnRails' regulated data is achieved by **AZ-pinning to the Nigerian AZ** (single-AZ, HA traded for compliance), treating **region-scoped services as gaps** with **in-country self-hosted mitigations**, and **on-prem/local DR** — with **policy that prevents** out-of-region creation and **audit that detects** it. Because no hyperscaler has a full Nigerian region, complete residency ultimately implies a **hybrid model**, which this architecture is built to evolve into. Any service whose in-country availability I cannot confirm is documented with a mitigation, never assumed compliant.

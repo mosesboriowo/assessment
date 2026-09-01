@@ -10,7 +10,7 @@
 
 I deploy the Laravel API as a stateless, containerised workload on **Huawei CCE (managed Kubernetes)**, backed by a **managed RDS database** (replacing SQLite) and **DCS (Redis)** for cache/session/queue. Traffic enters through an **ELB** with TLS, into an **NGINX ingress** inside the cluster. All state lives outside the pods (RDS, DCS, OBS), so pods are disposable and horizontally scalable.
 
-Everything is provisioned with **Terraform** (remote state in **OBS** with locking). Secrets live in **CSMS/KMS**, never in Git or state. All residency-bound data is pinned to a single approved Nigerian location (see the data-residency doc).
+Everything is provisioned with **Terraform** (remote state in **OBS** with locking). Secrets live in **self-hosted HashiCorp Vault** (in-country, HA Raft + auto-unseal), never in Git or state — Vault is chosen over region-scoped CSMS to keep secrets inside Nigeria (see §4.6). All residency-bound data is pinned to the Nigerian availability zone (see the data-residency doc).
 
 The design deliberately favours a **container platform (CCE)** over a single VM because Part 2 requires this to become a **paved road for many services** — the same foundation serves the Laravel API today and a Go service tomorrow with no new infrastructure.
 
@@ -25,7 +25,7 @@ The app is a Dockerised Laravel REST API with automated tests, using **SQLite** 
 | **Database** | SQLite (single file) | **Replace → RDS (MySQL)** — see §2.1 |
 | **Cache / sessions / queue** | file/array driver | **DCS (Redis)** — shared across replicas |
 | **File / object storage** | local disk | **OBS** (S3-compatible) via Laravel `Flysystem` |
-| **App key & secrets** | `.env` | **CSMS** injected at runtime |
+| **App key & secrets** | `.env` | **self-hosted Vault** (in-country), injected at runtime |
 | **Web runtime** | FrankenPHP (built-in) | **FrankenPHP** serves HTTP directly on **:8080** — no separate NGINX/PHP-FPM tier needed |
 | **Migrations** | run manually | run as a **CI/CD / init job** before traffic shift |
 | **Health probes** | `/api/v1/health`, `/api/v1/ready` | liveness → `/api/v1/health`; **readiness → `/api/v1/ready` (DB check)** — maps cleanly to K8s probes |
@@ -37,7 +37,7 @@ The app is a Dockerised Laravel REST API with automated tests, using **SQLite** 
 
 **Decision: replace SQLite with RDS for MySQL in production.**
 
-SQLite is a single-file, single-writer embedded database. It is unsuitable here because:
+SQLite is a single-file, single-writer embedded database. It is replaced here because:
 - **No horizontal scaling** — multiple API replicas cannot safely share one SQLite file; concurrent writes lock.
 - **Not durable in containers** — the file lives in the pod's ephemeral filesystem and is lost on restart/reschedule.
 - **No HA, backups, PITR, or replication** — all of which a payment workload requires.
@@ -57,7 +57,7 @@ flowchart TB
   SVC -->|SQL, private| RDS[(RDS MySQL<br/>multi-AZ, private subnet)]
   SVC -->|cache/queue/session| REDIS[(DCS Redis<br/>private subnet)]
   SVC -->|objects, via agency| OBS[(OBS<br/>object storage)]
-  SVC -. secrets at runtime .-> CSMS[CSMS + KMS]
+  SVC -. secrets at runtime .-> VAULT[Vault self-hosted<br/>in-country, HA Raft]
   SVC -. logs .-> LTS[LTS - Log Tank Service]
   SVC -. metrics .-> CE[Cloud Eye / AOM]
   CE --> SMN[SMN alerts → email/Teams]
@@ -89,7 +89,7 @@ flowchart TB
 - Multi-AZ, private subnet only, automated backups + PITR, KMS encryption at rest, TLS in transit.
 - **Alternative:** self-managed MySQL on ECS (cheaper, full control) — rejected for the operational burden of HA/backups/patching on a payments datastore.
 
-### 4.3 Cache / queue → **DCS (Redis)**
+### 4.3 Cache / queue → **DCS (This serves as Redis on Huawei cloud)**
 - Shared cache, sessions, and queue backend across replicas (Laravel `redis` driver).
 - **Alternative:** database/file drivers — rejected (don't scale across pods).
 
@@ -103,8 +103,12 @@ flowchart TB
 ### 4.5 Load balancing, ingress, TLS → **ELB → NGINX ingress + cert**
 - ELB terminates/forwards HTTPS in the public subnet; **NGINX ingress** routes to services inside CCE (a skill and pattern I already run in production). TLS via managed certificate (Huawei SCM) or cert-manager + ACME. **HTTP→HTTPS redirect**, HSTS.
 
-### 4.6 Secrets & configuration → **CSMS + KMS**
-- App key, DB/Redis credentials, third-party keys stored in **CSMS**, encrypted with **KMS**. Injected into pods at runtime (secret store CSI / init) — **never** in Terraform, container images, or Git. Config that is non-secret comes from ConfigMaps/env.
+### 4.6 Secrets & configuration → **self-hosted HashiCorp Vault (in-country)**, KMS for at-rest
+- **Why Vault over CSMS:** CSMS/KMS are **region-scoped** (Johannesburg) → they place secrets/keys *outside* Nigeria, a residency gap. **Self-hosted Vault on CCE, in the Nigerian AZ, with data on a PVC**, keeps secrets in-country and stays cloud-agnostic (portable to on-prem for the hybrid model). See `deploy/helm/vault`.
+- **HA + no manual unseal:** **3-node Raft** (quorum tolerates one node loss — 2 nodes can't keep quorum), with **auto-unseal** (Transit against a small in-country unseal Vault) so pod restarts never require a human to unseal.
+- **Auth:** pods use the **Kubernetes auth method** (service-account token); human operators use **AD/LDAP/OIDC** (AD groups → Vault policies). AD is for people, K8s auth for workloads.
+- **Dynamic secrets:** Vault's database engine issues **short-lived, per-pod MySQL credentials** (auto-rotated/revoked) instead of a static password — a real security win for payments. Injected via the **Vault Agent**; nothing sensitive in Terraform, images, or Git.
+- **Trade-off:** Vault is self-hosted (I run Raft/auto-unseal/upgrades/backups) vs. managed CSMS — but residency already forces self-hosting, so Vault is preferred; CSMS remains fine for **non-residency-bound** config only.
 
 ### 4.7 Identity & access → **IAM + workload identity (agencies)**
 - Human/CI IAM users scoped least-privilege. Pods use a Huawei **agency** (workload identity) to reach OBS/CSMS — **no static access keys baked into images**. Separate, tightly-scoped credential for the CI/CD deploy role.
@@ -146,7 +150,7 @@ Pipeline stages (detailed in the CI/CD doc):
 ## 5. Cross-cutting concerns
 
 ### 5.1 Security (summary; full detail in security doc)
-Private subnets, least-privilege SGs and IAM, TLS everywhere, encryption at rest (KMS) and in transit, secrets in CSMS, image + SAST scanning in CI, no public database, audit logging via **CTS (Cloud Trace Service)**.
+Private subnets, least-privilege SGs and IAM, TLS everywhere, encryption at rest (KMS) and in transit, secrets in **self-hosted Vault** (in-country) with dynamic DB creds, image + SAST scanning in CI, no public database, audit logging via **CTS (Cloud Trace Service)**.
 
 ### 5.2 Cost drivers & cost-conscious choices
 - **Main drivers:** CCE control plane + worker nodes, RDS (multi-AZ ≈ 2×), ELB, NAT gateway, OBS, inter-AZ/egress data transfer.

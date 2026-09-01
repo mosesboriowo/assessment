@@ -15,7 +15,7 @@ The core idea: the Part 1 solution is already **90% reusable**. A new service re
 | **CI/CD template** | `ci-cd/cd-pipeline.yml` is parameterised (image name, chart values). A new service copies ~10 lines, not a pipeline. |
 | **Golden-path Helm chart** | `deploy/helm/service` renders a production-shaped Deployment/Service/Ingress/HPA/probes/secret-injection from a small `values.yaml`. |
 | **Standardised observability** | LTS log project + Cloud Eye/AOM dashboards + SMN alert rules are defined once; a service inherits them by labelling. |
-| **Secrets management** | CSMS + the secrets operator; a service gets `TEAM/SERVICE/*` secret paths and a workload agency, no static keys. |
+| **Secrets management** | Self-hosted **Vault** (in-country); a service gets `TEAM/SERVICE/*` paths, a Kubernetes-auth role, and **dynamic short-lived DB creds** via the Vault Agent — no static keys. |
 | **IAM / workload identity** | One agency pattern; each service's pods assume a scoped identity for its own secrets/bucket only. |
 | **Networking standards** | Same 3-tier segmentation and SG conventions; services never expose data tiers. |
 | **Security guardrails** | Policy-as-code (OPA/Gatekeeper) enforces: no `latest` tag, resource limits required, no public LoadBalancer on data services, readiness probe required. |
@@ -33,7 +33,7 @@ A team creates a service by providing three things and running one command:
 2. A **`values.yaml`** (name, port, health paths, scaling).
 3. A **service manifest** declaring what backing services it needs (e.g. `database: mysql`, `cache: redis`).
 
-The platform then, via the shared module + pipeline, provisions the namespace, a database + CSMS secret, the workload identity, and wires the golden-path chart. The safe path is the easy path — teams don't touch raw Terraform or Kubernetes for the common case.
+The platform then, via the shared module + pipeline, provisions the namespace, a database + Vault DB role (dynamic creds), the workload identity, and wires the golden-path chart. The safe path is the easy path — teams don't touch raw Terraform or Kubernetes for the common case.
 
 ---
 
@@ -50,7 +50,7 @@ The platform then, via the shared module + pipeline, provisions the namespace, a
 
 **They do NOT build:** networking, TLS, cluster, secret store, observability, IAM plumbing, or a bespoke pipeline. That is the difference between a paved road and repeatedly paving dirt.
 
-**Guardrails still apply automatically:** image scanning, resource limits, readiness probe, no public data tier, secrets from CSMS — enforced by the pipeline and OPA policies, so a new team can't accidentally ship something insecure.
+**Guardrails still apply automatically:** image scanning, resource limits, readiness probe, no public data tier, secrets from Vault (K8s auth) — enforced by the pipeline and OPA policies, so a new team can't accidentally ship something insecure.
 
 ---
 

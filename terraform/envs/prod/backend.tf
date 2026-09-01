@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------
-# Remote state on Huawei OBS (S3-compatible), pinned to the Nigerian location
-# so that Terraform state — which contains resource metadata — also satisfies
-# the CBN data-residency boundary (see docs/security-data-residency).
+# Remote state on Huawei OBS (S3-compatible). OBS is region-scoped (af-south-1),
+# so state physically resides in the region (South Africa), not the Nigerian AZ —
+# a residency gap flagged below and mitigated in-country (see residency doc).
 #
 # NOTE ON LOCKING: the AWS s3 backend normally uses DynamoDB for state locking,
 # which OBS does not provide. Terraform >= 1.10 supports S3-native lockfiles
@@ -13,11 +13,15 @@ terraform {
   backend "s3" {
     bucket = "cor-tfstate-prod" # created during bootstrap, versioning + encryption on
     key    = "prod/terraform.tfstate"
-    region = "af-north-1" # ASSUMPTION: Nigeria region code — verify against Huawei console
+    region = "af-south-1" # Southern-Africa region (Johannesburg); the Nigerian AZ is within it
 
     endpoints = {
-      s3 = "https://obs.af-north-1.myhuaweicloud.com"
+      s3 = "https://obs.af-south-1.myhuaweicloud.com"
     }
+
+    # RESIDENCY NOTE: OBS is region-scoped → state lives in af-south-1 (South
+    # Africa), not the Nigerian AZ. Strict CBN reading makes this a GAP; the
+    # in-country mitigation is an on-prem/DC state backend (residency doc §B.4).
 
     # OBS is S3-compatible but not AWS — skip AWS-specific validations.
     skip_region_validation      = true

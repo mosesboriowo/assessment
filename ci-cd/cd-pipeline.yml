@@ -14,7 +14,7 @@ on:
   workflow_dispatch: {}
 
 env:
-  IMAGE: swr.af-north-1.myhuaweicloud.com/cashonrails/api
+  IMAGE: swr.af-south-1.myhuaweicloud.com/cashonrails/api
   CLUSTER: cor-staging-cce
 
 jobs:
@@ -46,7 +46,7 @@ jobs:
       # 4. Publish to SWR (Huawei container registry).
       - name: Login + push to SWR
         run: |
-          echo "${{ secrets.SWR_PASSWORD }}" | docker login swr.af-north-1.myhuaweicloud.com \
+          echo "${{ secrets.SWR_PASSWORD }}" | docker login swr.af-south-1.myhuaweicloud.com \
             -u "${{ secrets.SWR_USERNAME }}" --password-stdin
           docker push "$IMAGE:${GITHUB_SHA::12}"
 

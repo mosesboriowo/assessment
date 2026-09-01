@@ -1,15 +1,13 @@
-# Golden-path defaults. A service overrides only what differs (image, port,
-# health paths, scaling). Example values shown for the Laravel assessment API.
 
 name: cashonrails-api
 
 image:
-  repository: swr.af-north-1.myhuaweicloud.com/cashonrails/api
-  tag: "latest" # CI overrides with the immutable git SHA
+  repository: swr.af-south-1.myhuaweicloud.com/cashonrails/api
+  tag: "latest" 
   pullPolicy: IfNotPresent
 
 replicas: 3
-containerPort: 8080 # FrankenPHP serves HTTP here
+containerPort: 8080 
 
 # Health endpoints the app already exposes.
 probes:
@@ -27,8 +25,6 @@ autoscaling:
   maxReplicas: 10
   targetMemoryUtilizationPercentage: 75
 
-# Secrets are synced from CSMS into a k8s Secret by the secrets operator; the
-# pod consumes them via envFrom. Nothing sensitive lives in this chart or Git.
 envFromSecret: cashonrails-api-secrets
 
 ingress:

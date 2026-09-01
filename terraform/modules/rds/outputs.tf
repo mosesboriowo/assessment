@@ -14,11 +14,17 @@ output "database_name" {
   value = var.db_name
 }
 
-# The CSMS secret name the app pods resolve at runtime (no secret value exposed).
-output "app_credentials_secret_name" {
-  value = huaweicloud_csms_secret.db.name
-}
-
 output "kms_key_id" {
   value = local.kms_id
+}
+
+# Admin credential consumed by Vault's database secrets engine at bootstrap so it
+# can mint short-lived, per-pod app users. Sensitive; never stored in CSMS or Git.
+output "admin_username" {
+  value = "root"
+}
+
+output "admin_password" {
+  value     = random_password.admin.result
+  sensitive = true
 }

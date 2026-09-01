@@ -21,9 +21,9 @@ variable "availability_zone" {
 }
 
 variable "availability_zones" {
-  description = "AZ list for RDS/DCS. One AZ in staging; two in prod for HA. Verify AZ codes in console."
+  description = "AZ list for RDS/DCS. Residency-bound data uses ONLY the Nigerian AZ within af-south-1 (single-AZ; see residency doc §B.0). Must be set in tfvars."
   type        = list(string)
-  default     = ["af-north-1a"]
+  default     = []
 }
 
 variable "domain_name" {
@@ -49,6 +49,6 @@ variable "tags" {
     project     = "cashonrails-assessment"
     environment = "staging"
     owner       = "moses-boriowo"
-    residency   = "nigeria" # used to audit that residency-bound resources are correctly located
+    residency   = "nigeria"
   }
 }
