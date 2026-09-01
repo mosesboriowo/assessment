@@ -174,11 +174,4 @@ The residency doc contains the **data-class × service × in-Nigeria?** matrix p
 4. Sessions are token-based (stateless API); if server sessions are used, they go to DCS.
 5. Prod-sized capacity numbers (replica counts, node sizes) are illustrative and tuned from load testing in a real engagement.
 
----
 
-## 7. What I'd add with more time (production hardening)
-- Service mesh (mTLS between services) as the platform grows.
-- Progressive delivery (canary/blue-green) via Argo Rollouts.
-- Policy-as-code (OPA/Gatekeeper) for security guardrails (ties into Part 2).
-- Full DR runbook with periodic restore drills.
-- Cost dashboards + anomaly alerts.
