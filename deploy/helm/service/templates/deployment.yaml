@@ -25,10 +25,19 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.containerPort }}
-          # Credentials/config synced from Vault into this Secret; never in Git.
+          # Credentials/config come from Vault. The Vault Secrets Operator syncs
+          # each declared Vault path into a native Secret (see vault-secret.yaml),
+          # which we mount here via envFrom. Nothing sensitive is ever in Git.
           envFrom:
+            {{- if .Values.vault.enabled }}
+            {{- range .Values.vault.sources }}
+            - secretRef:
+                name: {{ $.Values.name }}-{{ .name }}
+            {{- end }}
+            {{- else }}
             - secretRef:
                 name: {{ .Values.envFromSecret }}
+            {{- end }}
           # Liveness restarts hung pods; readiness (DB-aware) gates traffic so a
           # pod receives no requests until its database connection is healthy.
           livenessProbe:

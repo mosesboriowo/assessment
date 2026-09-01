@@ -1,0 +1,24 @@
+# AppProject scoping everything the csh-product platform is allowed to do.
+# One project for all product services across staging + production. It bounds
+# the source repo and the destinations, so a stray values file can't deploy to
+# a namespace or cluster it shouldn't.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: csh-product
+  namespace: argocd
+spec:
+  description: CashOnRails product services (paved road)
+  sourceRepos:
+    - https://github.com/mosesboriowo/assessment.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*-stg"
+    - server: https://kubernetes.default.svc
+      namespace: "*-production"
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

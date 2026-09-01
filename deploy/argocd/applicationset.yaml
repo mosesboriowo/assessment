@@ -1,0 +1,60 @@
+# ---------------------------------------------------------------------------
+# The paved-road engine. A Git-files generator globs every app values file
+# under csh-product/<env>/values/*.yml. Each file that exists becomes one
+# Argo CD Application that renders the shared golden-path chart with that file.
+#
+# Onboarding a service = adding one file:
+#     csh-product/stg/values/enyo.yml         -> app "stg-enyo"        (ns enyo-stg)
+#     csh-product/production/values/enyo.yml  -> app "production-enyo" (ns enyo-production)
+#
+# No new pipeline, no new Argo config, no kubectl. Delete the file -> the app
+# is pruned. The chart lives once at deploy/helm/service; the values file is
+# the only thing a team owns.
+# ---------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: csh-product
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/mosesboriowo/assessment.git
+        revision: HEAD
+        files:
+          - path: "csh-product/*/values/*.yml"
+  template:
+    metadata:
+      # <env>-<app>, e.g. stg-enyo / production-enyo
+      name: "{{ index .path.segments 1 }}-{{ trimSuffix \".yml\" .path.filename }}"
+      labels:
+        env: "{{ index .path.segments 1 }}"
+        app: "{{ trimSuffix \".yml\" .path.filename }}"
+    spec:
+      project: csh-product
+      # Multi-source: the chart comes from deploy/helm/service, the values come
+      # from the app's own file referenced as $values (same repo, different path).
+      sources:
+        - repoURL: https://github.com/mosesboriowo/assessment.git
+          targetRevision: HEAD
+          path: deploy/helm/service
+          helm:
+            releaseName: "{{ trimSuffix \".yml\" .path.filename }}"
+            valueFiles:
+              - "$values/{{ .path.path }}/{{ .path.filename }}"
+        - repoURL: https://github.com/mosesboriowo/assessment.git
+          targetRevision: HEAD
+          ref: values
+      destination:
+        server: https://kubernetes.default.svc
+        # <app>-<env>, e.g. enyo-stg / enyo-production
+        namespace: "{{ trimSuffix \".yml\" .path.filename }}-{{ index .path.segments 1 }}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ApplyOutOfSyncOnly=true

@@ -12,7 +12,8 @@ The core idea: the Part 1 solution is already **reusable**. A new service reuses
 |---|---|
 | **Compute** | One **CCE** cluster; each service is a namespace + Deployment. No new cluster per service. |
 | **Reusable Terraform modules** | `vpc`, `rds`, `dcs`, `obs`, `iam`, `cce`, `elb` — a team composes them, or a new `service-infra` module wraps "DB + secret + namespace" as one call. |
-| **CI/CD template** | `ci-cd/cd-pipeline.yml` is parameterised (image name, chart values). A new service copies ~10 lines, not a pipeline. |
+| **CI/CD template** | `ci-cd/cd-pipeline.yml` builds/scans/pushes and commits the image SHA into the app's values file. Reused as-is; only image name + values path differ. |
+| **GitOps delivery** | **Argo CD** `ApplicationSet` turns any `csh-product/<env>/values/<app>.yml` into a running service. CI never holds cluster creds; `git revert` is rollback. |
 | **Golden-path Helm chart** | `deploy/helm/service` renders a production-shaped Deployment/Service/Ingress/HPA/probes/secret-injection from a small `values.yaml`. |
 | **Standardised observability** | LTS log project + Cloud Eye/AOM dashboards + SMN alert rules are defined once; a service inherits them by labelling. |
 | **Secrets management** | Self-hosted **Vault** (in-country); a service gets `TEAM/SERVICE/*` paths, a Kubernetes-auth role, and **dynamic short-lived DB creds** via the Vault Agent — no static keys. |
@@ -28,12 +29,20 @@ The core idea: the Part 1 solution is already **reusable**. A new service reuses
 
 ## Developer self-service (the paved road)
 
-A team creates a service by providing three things and running one command:
-1. A **Dockerfile** (their image).
-2. A **`values.yaml`** (name, port, health paths, scaling).
-3. A **service manifest** declaring what backing services it needs (e.g. `database: mysql`, `cache: redis`).
+Deployment is **GitOps via Argo CD** — no team ever runs `kubectl`/`helm` at the cluster. Onboarding a service is **committing one values file** at a fixed path:
 
-The platform then, via the shared module + pipeline, provisions the namespace, a database + Vault DB role (dynamic creds), the workload identity, and wires the golden-path chart. The safe path is the easy path — teams don't touch raw Terraform or Kubernetes for the common case.
+```
+csh-product/stg/values/<app>.yml          # staging
+csh-product/production/values/<app>.yml   # production
+```
+
+An Argo CD **ApplicationSet** (`deploy/argocd/applicationset.yaml`) globs `csh-product/*/values/*.yml`; every file that appears becomes one Argo `Application` that renders the shared golden-path chart with that file. So committing `csh-product/stg/values/enyo.yml` alone makes Argo create namespace `enyo-stg` and render **Deployment, Service, Ingress, HPA**, the **Vault Secrets Operator** syncs (dynamic DB creds + static KV → mounted via `envFrom`), and the **PreSync migration** hook — then roll out with readiness-gated traffic. Deleting the file prunes the service. Production is the same file under `csh-product/production/values/`.
+
+What a team provides:
+1. A **Dockerfile** — an HTTP container exposing liveness + readiness (readiness checks its own deps, like `/api/v1/ready`).
+2. The **`<app>.yml`** values file (image, port, health paths, scaling, its Vault paths).
+
+Releases carry no cluster credentials: CI builds → scans → pushes to SWR, then **commits the immutable image SHA into the staging values file**; Argo syncs from that commit. Promotion to prod is a human-approved commit copying the proven SHA into the production file. The git history is the release log; rollback is `git revert`. See `deploy/argocd/README.md`. The safe path is the easy path — teams don't touch raw Terraform, Argo config, or Kubernetes for the common case.
 
 ---
 
@@ -44,9 +53,9 @@ The platform then, via the shared module + pipeline, provisions the namespace, a
 
 **What you need to provide:**
 1. A **Dockerfile** producing a container that listens on a port and exposes **liveness + readiness** endpoints (readiness should check its own dependencies, like our `/api/v1/ready` does).
-2. A **`values.yaml`** (image, `containerPort`, probe paths, scaling targets).
-3. A **service manifest** requesting backing resources (its own MySQL DB + Redis, provisioned by the shared `rds`/`dcs` modules into the shared instances or dedicated ones per policy).
-4. Their **pipeline stub** (10 lines pointing the shared template at the image + chart insode the deploy folder).
+2. A **`csh-product/<env>/values/<app>.yml`** file (image, `containerPort`, probe paths, scaling targets, Vault paths). Committing it is the deploy — Argo does the rest.
+3. Backing resources (its own MySQL DB + Redis) provisioned by the shared `rds`/`dcs` modules and exposed through Vault (dynamic DB creds + KV), referenced by the Vault paths in that values file.
+4. **No pipeline to write** — they reuse the shared CI template (build/scan/push + commit the SHA into their values file); Argo CD syncs from Git.
 
 **They do NOT build:** networking, TLS, cluster, secret store, observability, IAM plumbing, or a bespoke pipeline. That is the difference between a paved road and repeatedly paving dirt.
 

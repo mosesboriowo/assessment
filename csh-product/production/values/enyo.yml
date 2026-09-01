@@ -1,0 +1,50 @@
+# enyo — PRODUCTION. Namespace enyo-production. Promotion from staging is a
+# one-line change: copy the SHA proven in enyo-stg into the tag below.
+name: enyo
+
+image:
+  repository: swr.af-south-1.myhuaweicloud.com/csh-product/enyo
+  tag: "latest" # promote the SHA already verified in staging
+
+containerPort: 8080
+replicas: 3
+
+probes:
+  liveness: /api/v1/health
+  readiness: /api/v1/ready
+
+resources:
+  requests: { cpu: 250m, memory: 256Mi }
+  limits: { cpu: "1", memory: 512Mi }
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetMemoryUtilizationPercentage: 70
+
+vault:
+  enabled: true
+  authRef: vault-auth
+  sources:
+    - name: db
+      type: dynamic
+      mount: database
+      path: creds/enyo-prod
+    - name: kv
+      type: static
+      mount: kv
+      path: csh/production/enyo
+
+migrations:
+  enabled: true
+
+ingress:
+  enabled: true
+  className: nginx
+  host: enyo.cashonrails.internal
+  tls: true
+
+service:
+  port: 80
+  targetPort: 8080

@@ -1,13 +1,19 @@
+# ---------------------------------------------------------------------------
+# Golden-path chart DEFAULTS. A team does NOT edit this file — they drop a
+# per-app values file at csh-product/<env>/values/<app>.yml and Argo renders
+# this chart with it (see deploy/argocd). This file documents every knob and
+# provides safe defaults; an app file overrides only what is genuinely its own.
+# ---------------------------------------------------------------------------
 
 name: cashonrails-api
 
 image:
   repository: swr.af-south-1.myhuaweicloud.com/cashonrails/api
-  tag: "latest" 
+  tag: "latest" # per-app file pins an immutable SHA; CI bumps it on release
   pullPolicy: IfNotPresent
 
 replicas: 3
-containerPort: 8080 
+containerPort: 8080
 
 # Health endpoints the app already exposes.
 probes:
@@ -25,7 +31,31 @@ autoscaling:
   maxReplicas: 10
   targetMemoryUtilizationPercentage: 75
 
+# Secrets from Vault via the Vault Secrets Operator. Each source is synced into
+# a Kubernetes Secret named <app>-<source> and mounted via envFrom. The app
+# authenticates with the Kubernetes auth method through a shared VaultAuth the
+# platform provisions once (authRef below). Set vault.enabled: false to fall
+# back to a pre-existing Secret named by envFromSecret.
+vault:
+  enabled: true
+  authRef: vault-auth # shared VaultAuth in the app namespace (platform-provided)
+  sources:
+    - name: db # -> Secret <app>-db, dynamic short-lived MySQL creds
+      type: dynamic
+      mount: database
+      path: creds/cashonrails-api
+    - name: kv # -> Secret <app>-kv, static KV v2 (APP_KEY, REDIS_PASSWORD, ...)
+      type: static
+      mount: kv
+      path: csh/cashonrails-api
+      refreshAfter: 1h
+
+# Fallback only, used when vault.enabled is false.
 envFromSecret: cashonrails-api-secrets
+
+# DB migrations run as an Argo PreSync hook before each rollout.
+migrations:
+  enabled: true
 
 ingress:
   enabled: true

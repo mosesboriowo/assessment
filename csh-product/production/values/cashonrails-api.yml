@@ -1,0 +1,34 @@
+# cashonrails-api — PRODUCTION. Same chart, prod-scaled values. Promotion to
+# prod is a commit that copies staging's proven image SHA into the tag below.
+name: cashonrails-api
+
+image:
+  repository: swr.af-south-1.myhuaweicloud.com/cashonrails/api
+  tag: "latest" # promote by committing the SHA already verified in staging
+
+replicas: 3
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 12
+  targetMemoryUtilizationPercentage: 70
+
+vault:
+  enabled: true
+  authRef: vault-auth
+  sources:
+    - name: db
+      type: dynamic
+      mount: database
+      path: creds/cashonrails-api-prod
+    - name: kv
+      type: static
+      mount: kv
+      path: csh/production/cashonrails-api
+
+ingress:
+  enabled: true
+  className: nginx
+  host: api.cashonrails.internal
+  tls: true

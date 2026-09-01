@@ -17,8 +17,8 @@ Two things live here: the **security model** (IAM, secrets, networking, encrypti
 - Human admin via SSO/console, MFA, out of band from workloads.
 
 ### Secrets & encryption
-- All credentials are **generated** (`random_password`) and stored in **CSMS**, encrypted with **KMS**. Pods consume them at runtime. **Nothing sensitive in Git, images, or tfvars.**
-- **Encryption at rest** (KMS) on RDS, OBS, and DCS credentials; **TLS in transit** everywhere (ELB→ingress→service; app→RDS/DCS over TLS).
+- Application credentials live in **self-hosted Vault** (in-country, HA Raft, auto-unseal): pods authenticate with the **Kubernetes auth method** and get **dynamic, short-lived DB credentials** minted per pod — nothing static. The only Terraform-generated secret is the RDS **admin** password (`random_password`, a sensitive output consumed by Vault's DB engine), never checked in. **Nothing sensitive in Git, images, or tfvars.**
+- **Encryption at rest** (KMS) on RDS and OBS; Vault's own storage is encrypted and sealed. **TLS in transit** everywhere (ELB→ingress→service; app→RDS/DCS over TLS; pods→Vault over TLS).
 
 ### Auditability
 - **CTS (Cloud Trace Service)** records all control-plane API calls (who created/changed what).

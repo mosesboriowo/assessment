@@ -1,0 +1,52 @@
+# enyo — STAGING. This single file is the entire onboarding action: committing
+# it makes Argo create the namespace (enyo-stg), Deployment, Service, Ingress,
+# HPA, Vault secret syncs, and the migration PreSync hook — all from the shared
+# golden-path chart. A team never touches Terraform, Argo config, or kubectl.
+name: enyo
+
+image:
+  repository: swr.af-south-1.myhuaweicloud.com/csh-product/enyo
+  tag: "latest" # CI commits the immutable SHA here on each staging release
+
+containerPort: 8080
+replicas: 2
+
+probes:
+  liveness: /api/v1/health
+  readiness: /api/v1/ready
+
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits: { cpu: 500m, memory: 256Mi }
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetMemoryUtilizationPercentage: 75
+
+vault:
+  enabled: true
+  authRef: vault-auth
+  sources:
+    - name: db
+      type: dynamic
+      mount: database
+      path: creds/enyo-stg
+    - name: kv
+      type: static
+      mount: kv
+      path: csh/stg/enyo
+
+migrations:
+  enabled: true
+
+ingress:
+  enabled: true
+  className: nginx
+  host: enyo.stg.cashonrails.internal
+  tls: true
+
+service:
+  port: 80
+  targetPort: 8080

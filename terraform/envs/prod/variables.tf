@@ -6,12 +6,12 @@ variable "region" {
 variable "name_prefix" {
   description = "Naming prefix for this environment's resources."
   type        = string
-  default     = "cor-staging"
+  default     = "cor-prod"
 }
 
 variable "vpc_cidr" {
   type    = string
-  default = "10.20.0.0/16"
+  default = "10.30.0.0/16"
 }
 
 variable "availability_zone" {
@@ -47,8 +47,8 @@ variable "tags" {
   type = map(string)
   default = {
     project     = "cashonrails-assessment"
-    environment = "staging"
-    owner       = "moses-boriowo"
-    residency   = "nigeria" # used to audit that residency-bound resources are correctly located
+    environment = "Production"
+    owner       = "moses boriowo"
+    residency   = "nigeria"
   }
 }

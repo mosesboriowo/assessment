@@ -4,7 +4,7 @@ terraform {
   required_providers {
     huaweicloud = {
       source  = "huaweicloud/huaweicloud"
-      version = "~> 1.70" # pinned to a minor line for reproducible plans
+      version = "~> 1.70"
     }
     random = {
       source  = "hashicorp/random"

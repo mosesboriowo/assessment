@@ -1,0 +1,27 @@
+# App-of-apps root. This is the ONE Application you apply by hand (once), after
+# installing Argo CD. It points Argo at deploy/argocd/, so the AppProject and
+# the ApplicationSet above are themselves managed by GitOps — after this, every
+# change (new service, policy tweak) is a git commit, never a kubectl apply.
+#
+#   argocd app create   (or) kubectl apply -f deploy/argocd/bootstrap.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: csh-product-bootstrap
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/mosesboriowo/assessment.git
+    targetRevision: HEAD
+    path: deploy/argocd
+    directory:
+      recurse: false
+      exclude: bootstrap.yaml # don't let the root manage itself
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

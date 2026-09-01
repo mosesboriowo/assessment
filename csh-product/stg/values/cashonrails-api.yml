@@ -1,0 +1,34 @@
+# cashonrails-api — STAGING. Overrides only what is app/env-specific; every
+# other default comes from deploy/helm/service/values.yaml.
+name: cashonrails-api
+
+image:
+  repository: swr.af-south-1.myhuaweicloud.com/cashonrails/api
+  tag: "latest" # CI commits the immutable SHA here on each staging release
+
+replicas: 2
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetMemoryUtilizationPercentage: 75
+
+vault:
+  enabled: true
+  authRef: vault-auth
+  sources:
+    - name: db
+      type: dynamic
+      mount: database
+      path: creds/cashonrails-api-stg
+    - name: kv
+      type: static
+      mount: kv
+      path: csh/stg/cashonrails-api
+
+ingress:
+  enabled: true
+  className: nginx
+  host: api.stg.cashonrails.internal
+  tls: true

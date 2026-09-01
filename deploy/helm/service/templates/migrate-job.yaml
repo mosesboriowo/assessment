@@ -1,0 +1,40 @@
+{{- if .Values.migrations.enabled }}
+# ---------------------------------------------------------------------------
+# DB migrations as an Argo CD PreSync hook. Argo runs this Job to completion
+# BEFORE the new Deployment rolls, so the schema is ready when the new pods
+# start. If it fails, the sync is aborted and the previous version keeps
+# serving (no half-migrated release). BeforeHookCreation deletes the prior
+# hook Job on each sync so the name is reusable.
+# ---------------------------------------------------------------------------
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.name }}-migrate
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+        job: migrate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command: ["php", "artisan", "migrate", "--force"]
+          # Same DB credentials the app uses — synced from Vault by VSO.
+          envFrom:
+            {{- if .Values.vault.enabled }}
+            {{- range .Values.vault.sources }}
+            - secretRef:
+                name: {{ $.Values.name }}-{{ .name }}
+            {{- end }}
+            {{- else }}
+            - secretRef:
+                name: {{ .Values.envFromSecret }}
+            {{- end }}
+{{- end }}

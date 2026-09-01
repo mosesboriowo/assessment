@@ -111,7 +111,7 @@ flowchart TB
 - **Trade-off:** Vault is self-hosted (I run Raft/auto-unseal/upgrades/backups) vs. managed CSMS — but residency already forces self-hosting, so Vault is preferred; CSMS remains fine for **non-residency-bound** config only.
 
 ### 4.7 Identity & access → **IAM + workload identity (agencies)**
-- Human/CI IAM users scoped least-privilege. Pods use a Huawei **agency** (workload identity) to reach OBS/CSMS — **no static access keys baked into images**. Separate, tightly-scoped credential for the CI/CD deploy role.
+- Human/CI IAM users scoped least-privilege. Pods use a Huawei **agency** (workload identity) to reach their own OBS bucket, and authenticate to Vault via the Kubernetes auth method for secrets — **no static access keys baked into images**. Separate, tightly-scoped credential for the CI/CD deploy role.
 
 ### 4.8 CI/CD → build → test → scan → publish → deploy → verify → rollback
 Pipeline stages (detailed in the CI/CD doc):

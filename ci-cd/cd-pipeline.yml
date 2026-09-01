@@ -68,29 +68,32 @@ jobs:
       - run: terraform plan -out=tfplan
       - run: terraform apply -auto-approve tfplan # prod would require manual approval
 
-  deploy:
-    needs: infra
+  # GitOps promotion. CI does NOT touch the cluster (no kubeconfig, no helm).
+  # It writes the freshly-built, scanned image SHA into the staging values file
+  # and pushes. Argo CD (running inside CCE) detects the commit and syncs:
+  # PreSync migration hook -> rolling update -> readiness-gated traffic. A bad
+  # release is reverted with `git revert`; the commit IS the audit record.
+  promote-staging:
+    needs: test-build-scan-publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the tag bump back to the repo
+    env:
+      APP: cashonrails-api
+      VALUES: csh-product/stg/values/cashonrails-api.yml
     steps:
       - uses: actions/checkout@v4
-      - name: Configure kubectl for CCE
-        run: echo "fetch CCE kubeconfig via Huawei CLI using the scoped CI credential"
-      # 5. Deploy via Helm (readiness-probe gated rolling update).
-      - name: Helm deploy
+      - name: Pin new image tag in staging values
         run: |
-          helm upgrade --install cashonrails-api deploy/helm/service \
-            --set image.tag="${GITHUB_SHA::12}" \
-            --namespace staging --create-namespace --wait --timeout 5m
-      # 6. Run DB migrations as a one-off job before marking the release good.
-      - name: Migrate
-        run: kubectl -n staging create job --from=cronjob/migrate migrate-${GITHUB_SHA::12} || \
-             kubectl -n staging exec deploy/cashonrails-api -- php artisan migrate --force
-      # 7. Smoke test the health endpoint + a real route.
-      - name: Smoke test
+          TAG="${GITHUB_SHA::12}"
+          yq -i ".image.tag = \"${TAG}\"" "$VALUES"
+      - name: Commit + push (Argo syncs from here)
         run: |
-          kubectl -n staging rollout status deploy/cashonrails-api --timeout=120s
-          curl -fsS https://api.staging.cashonrails.internal/api/v1/health
-      # 8. Auto-rollback if the rollout/smoke failed.
-      - name: Rollback on failure
-        if: failure()
-        run: helm rollback cashonrails-api --namespace staging
+          git config user.name  "ci-bot"
+          git config user.email "ci-bot@cashonrails.internal"
+          git commit -am "deploy(staging): ${APP} -> ${GITHUB_SHA::12}" || echo "no change"
+          git push
+      # Promotion to production is a separate, human-approved commit copying this
+      # SHA into csh-product/production/values/cashonrails-api.yml. Argo does the
+      # rest. Smoke tests + auto-rollback live in the chart's Argo hooks and
+      # readiness gating — not in CI.
