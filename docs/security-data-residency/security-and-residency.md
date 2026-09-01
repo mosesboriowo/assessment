@@ -33,6 +33,18 @@ Avoided by design (matching the brief's prohibited list): committed secrets, pla
 
 **Residency boundary:** designated production customer and transaction data must remain in Nigeria. I extend that boundary to **every data class that could contain or reveal that data**, because the DB being in-country is not sufficient on its own.
 
+### B.0 Critical finding — Nigeria is an *availability zone*, not a full region
+Verifying in-console (and against public information), Huawei Cloud's full **regions** in Africa are **AF-Johannesburg (South Africa)** and **Egypt**. **Nigeria is an availability zone** associated with the Southern-Africa region, added in Huawei's 2024–25 expansion — **not an independent region**. This changes the residency design materially, and is exactly the case the brief warns about ("a single region does not automatically satisfy residency"):
+
+- **Region-scoped services and control-plane metadata physically live in South Africa**, not Nigeria (IAM, and potentially CSMS/KMS, monitoring/telemetry, SWR image metadata). That is residency-relevant data leaving the country.
+- **Multi-AZ HA becomes a residency *risk*, not a benefit** — replicating across the region's AZs can place a replica/backup in a **South African** AZ. So multi-AZ RDS/DCS must be reconsidered for residency-bound data.
+- **In-country DR is constrained** — with a single Nigerian AZ there is no second in-country AZ for cross-AZ DR.
+
+**Design consequences (applied below):**
+1. **AZ-pin** every residency-bound resource to the **Nigerian AZ specifically** (not just the region), accepting **single-AZ** in Nigeria for that data and documenting the **HA trade-off** — I trade cross-AZ HA for compliance because the other AZs are in the wrong country.
+2. **Classify each service AZ-pinnable vs region-scoped.** Region-scoped services are **residency gaps** → mitigate by **self-hosting the equivalent in-country** (Vault for secrets, Prometheus/Grafana + ELK on CCE for logs/telemetry, a private registry).
+3. **DR in-country** uses an **on-prem/local Nigerian site** (hybrid contingency), since a second in-country cloud AZ may not exist.
+
 ### B.1 Residency verification matrix
 
 | # | Data class | Huawei service | Location control | In Nigeria? |
@@ -55,8 +67,9 @@ Avoided by design (matching the brief's prohibited list): committed secrets, pla
 - DR: a second **Nigerian** AZ/DC (never a foreign region), so DR itself stays compliant.
 
 ### B.3 Assumptions
-1. Huawei's Nigerian DC exposes the **specific managed services** above (RDS/OBS/DCS/CSMS/KMS/SWR/LTS/Cloud Eye). Region and AZ codes (`af-north-1`, AZs) are **placeholders to confirm** in the console.
-2. Backups/replication default to **in-region** unless configured otherwise (I disable any cross-region option).
+1. **Nigeria is an AZ under the Southern-Africa region** (per §B.0), so residency-bound resources are **AZ-pinned to the Nigerian AZ** and run **single-AZ** (no cross-AZ HA into South Africa). Region/AZ codes are placeholders to confirm in-console.
+2. Which managed services are **AZ-pinnable** (RDS/DCS/OBS should be) vs **region-scoped** (IAM, and to-confirm CSMS/KMS/LTS/Cloud Eye/SWR) needs verification; region-scoped ones are treated as **residency gaps** until proven otherwise.
+3. Backups/replication default to **in-region**; I disable cross-region copy and pin snapshots to the Nigerian AZ.
 
 ### B.4 Services I could not fully verify
 - **LTS, Cloud Eye/AOM, CSMS/KMS, SWR** in-country availability and whether they store any metadata/telemetry outside the NG DC. **Mitigation if unavailable:** self-host the equivalent in-country (e.g. Prometheus/Grafana + ELK on CCE for observability/logs; Vault for secrets), keeping that data on Nigerian infrastructure. This is where the **hybrid/on-prem contingency** applies.

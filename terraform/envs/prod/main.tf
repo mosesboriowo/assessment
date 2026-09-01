@@ -21,8 +21,13 @@ module "rds" {
   subnet_id          = module.vpc.data_subnet_id
   security_group_id  = module.vpc.data_security_group_id
   availability_zones = var.availability_zones
-  multi_az           = true # production: synchronous HA replica across AZs
-  tags               = var.tags
+  # RESIDENCY TRADE-OFF: this DB holds customer/transaction data, so it is pinned
+  # single-AZ in the Nigerian AZ. Cross-AZ HA is DISABLED because the region's
+  # other AZs are in South Africa (docs/security-data-residency §B.0). The HA
+  # trade-off is accepted for CBN compliance and mitigated with fast PITR +
+  # on-prem DR. (If Huawei adds a 2nd Nigerian AZ, re-enable multi_az.)
+  multi_az = false
+  tags     = var.tags
 }
 
 module "dcs" {

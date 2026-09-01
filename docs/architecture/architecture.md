@@ -154,16 +154,19 @@ Private subnets, least-privilege SGs and IAM, TLS everywhere, encryption at rest
 - Per the brief, this is **not a full production-sized deployment** — I favour engineering quality and clear trade-offs over spend, and document what I'd scale up in production.
 
 ### 5.3 Data residency (summary; full detail in residency doc)
-Huawei operates a **local data centre in Nigeria**, so residency-bound data is kept **in-country on Huawei Cloud** — a hybrid/on-prem fallback is a contingency, not the primary approach. Every residency-bound data class — customer/transaction DB, its backups/snapshots, PII-bearing logs, monitoring/telemetry, secrets/keys, container images, DR copies, and **Terraform state** — is pinned to the Nigerian location.
+**Key constraint (verified in-console):** Huawei's Nigeria presence is an **availability zone under the Southern-Africa region**, *not* a standalone region. So selecting "the region" does **not** satisfy CBN — region-scoped services and cross-AZ replication can place data in **South Africa**. The design therefore:
+- **AZ-pins** every residency-bound resource (DB, backups, cache, object data, logs, Terraform state) to the **Nigerian AZ** and runs it **single-AZ**, explicitly trading cross-AZ HA for compliance because the other AZs are in the wrong country;
+- treats **region-scoped services** that can't be AZ-pinned (IAM, and to-verify CSMS/KMS/LTS/Cloud Eye/SWR) as **residency gaps**, mitigated by **self-hosting the equivalent in-country** (Vault, Prometheus/Grafana + ELK, private registry);
+- uses an **on-prem/local Nigerian site for DR**, since there is no second in-country cloud AZ.
 
-The real work (and what the brief tests) is **verifying per-service availability in the Nigerian DC**: not every managed service is guaranteed to run there, and some — monitoring/telemetry, the secret/key store, the image registry — can store metadata or copies *outside* the country by default. The residency doc contains a **data-class × Huawei-service × confirmed-in-Nigeria?** matrix; any service I cannot confirm runs in-country is documented as a **gap with an in-country mitigation**, never assumed compliant.
+The residency doc contains the **data-class × service × in-Nigeria?** matrix plus the policy that *prevents* out-of-region creation and the audit that *detects* it.
 
 ---
 
 ## 6. Assumptions & open questions (stated, not hidden)
 1. ✅ **Verified:** FrankenPHP container serves HTTP on **:8080**, fully env-var-configurable, logs to stderr.
 2. ✅ **Verified:** app ships **`/api/v1/health`** + **`/api/v1/ready`** (DB-aware) — used directly as probes. Switching SQLite→RDS is a **config-only change** (`DB_CONNECTION=mysql` + host/creds); Laravel migrations are DB-agnostic, so they run unchanged against RDS.
-3. **Per-service availability in the Nigerian data centre** — Huawei has an in-country DC, so residency is achievable in-cloud; the open question is *which specific managed services* (RDS, OBS, DCS, CCE, CSMS/KMS, LTS, Cloud Eye, SWR) actually run there vs. only in a larger region (e.g. Johannesburg). Verified per-service in the residency doc; any unavailable service gets an in-country mitigation.
+3. **Nigeria is an AZ, not a region** (verified in-console) — the single biggest design constraint. Residency-bound data is AZ-pinned + single-AZ in Nigeria; region-scoped services may physically sit in South Africa and are treated as gaps with in-country mitigations. Detailed in the residency doc §B.0. This also means **prod multi-AZ HA is deliberately disabled for residency-bound data** — a documented trade-off, not an oversight.
 4. Sessions are token-based (stateless API); if server sessions are used, they go to DCS.
 5. Prod-sized capacity numbers (replica counts, node sizes) are illustrative and tuned from load testing in a real engagement.
 
